@@ -19,7 +19,17 @@
         ? script.src.replace(/[^/]*$/, "") + "layers/"
         : "layers/"),
     fx: (script && script.getAttribute("data-fx")) !== "off",
+    mode: (script && script.getAttribute("data-mode")) || "fixed",
+    target: (script && script.getAttribute("data-target")) || "",
   };
+
+  // For inline script-as-anchor: insert a placeholder div right after the
+  // script tag while document.currentScript is still valid (synchronous).
+  var inlineAnchor = null;
+  if (cfg.mode === "inline" && !cfg.target && script && script.parentNode) {
+    inlineAnchor = document.createElement("div");
+    script.parentNode.insertBefore(inlineAnchor, script.nextSibling);
+  }
 
   // --- APNG sprite URLs ---
   var SPRITES = {
@@ -58,6 +68,10 @@
     "  60% { transform: rotate(-5deg); }",
     "  80% { transform: rotate(3deg); }",
     "}",
+    "@keyframes grmsbot-entrance-inline {",
+    "  from { opacity: 0; transform: scale(0.8); }",
+    "  to { opacity: 1; transform: scale(1); }",
+    "}",
     ".grmsbot-widget {",
     "  position: fixed;",
     "  z-index: 99999;",
@@ -65,6 +79,12 @@
     "  animation: grmsbot-entrance 0.6s ease-out both;",
     "  -webkit-user-select: none;",
     "  user-select: none;",
+    "}",
+    ".grmsbot-widget-inline {",
+    "  position: relative;",
+    "  display: inline-block;",
+    "  z-index: auto;",
+    "  animation: grmsbot-entrance-inline 0.5s ease-out both;",
     "}",
     ".grmsbot-sway {",
     "  animation: grmsbot-sway 4s ease-in-out infinite;",
@@ -135,11 +155,14 @@
 
   // --- Build DOM ---
   var container = document.createElement("div");
-  container.className = "grmsbot-widget";
+  var isInline = cfg.mode === "inline";
+  container.className = isInline ? "grmsbot-widget grmsbot-widget-inline" : "grmsbot-widget";
 
-  var pos = cfg.position.split("-");
-  container.style[pos[0] || "bottom"] = "20px";
-  container.style[pos[1] || "right"] = "20px";
+  if (!isInline) {
+    var pos = cfg.position.split("-");
+    container.style[pos[0] || "bottom"] = "20px";
+    container.style[pos[1] || "right"] = "20px";
+  }
 
   var swayWrap = document.createElement("div");
   swayWrap.className = "grmsbot-sway";
@@ -533,7 +556,24 @@
     createSprite("wave", SPRITES.wave);
 
     showSprite("idle");
-    document.body.appendChild(container);
+
+    if (isInline) {
+      if (cfg.target) {
+        var targetEl = document.querySelector(cfg.target);
+        if (targetEl) {
+          targetEl.appendChild(container);
+        } else {
+          document.body.appendChild(container);
+        }
+      } else if (inlineAnchor && inlineAnchor.parentNode) {
+        inlineAnchor.parentNode.replaceChild(container, inlineAnchor);
+      } else {
+        document.body.appendChild(container);
+      }
+    } else {
+      document.body.appendChild(container);
+    }
+
     fxInit();
     scheduleRandomWave();
   }
